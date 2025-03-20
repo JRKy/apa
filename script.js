@@ -1,3 +1,397 @@
+// Debounce utility function
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}
+
+// Function to get approximate AOR bounds based on site data
+function getAORBounds(aor) {
+    if (!locations || !Array.isArray(locations)) {
+        console.error('Locations data is not available or not an array');
+        return null;
+    }
+    const aorLocations = locations.filter(loc => loc.aor === aor);
+    if (aorLocations.length === 0) return null;
+
+    const lats = aorLocations.map(loc => loc.lat);
+    const lons = aorLocations.map(loc => loc.lon);
+    return [
+        [Math.min(...lats) - 5, Math.min(...lons) - 5], // Add buffer for better zoom
+        [Math.max(...lats) + 5, Math.max(...lons) + 5]
+    ];
+}
+
+function calculateAzEl(receiverLat, receiverLon, satCenterLon) {
+    // Input validation
+    if (typeof receiverLat !== 'number' || isNaN(receiverLat) || 
+        typeof receiverLon !== 'number' || isNaN(receiverLon) || 
+        typeof satCenterLon !== 'number' || isNaN(satCenterLon)) {
+        console.error('Invalid input to calculateAzEl:', { receiverLat, receiverLon, satCenterLon });
+        return { elevation: '-', azimuth: '-' };
+    }
+
+    try {
+        const earthRadius = 6378.137;
+        const geoRadius = 42164;
+
+        const phi_r = receiverLat * Math.PI / 180;
+        const lambda_r = receiverLon * Math.PI / 180;
+        const lambda_s = satCenterLon * Math.PI / 180;
+
+        const delta_lambda = lambda_s - lambda_r;
+        const phi_s = 0;
+
+        const phi_g = Math.atan(Math.pow(1 - 1/298.257223563, 2) * Math.tan(phi_r));
+
+        const r = earthRadius / Math.sqrt(Math.cos(phi_g) * Math.cos(phi_g) + 
+            Math.pow(1 - 1/298.257223563, 2) * Math.sin(phi_g) * Math.sin(phi_g));
+
+        const x_r = r * Math.cos(phi_g) * Math.cos(lambda_r);
+        const y_r = r * Math.cos(phi_g) * Math.sin(lambda_r);
+        const z_r = r * Math.sin(phi_g);
+
+        const x_s = geoRadius * Math.cos(lambda_s);
+        const y_s = geoRadius * Math.sin(lambda_s);
+        const z_s = 0;
+
+        const rho_x = x_s - x_r;
+        const rho_y = y_s - y_r;
+        const rho_z = z_s - z_r;
+
+        const sin_phi = Math.sin(phi_g);
+        const cos_phi = Math.cos(phi_g);
+        const sin_lambda = Math.sin(lambda_r);
+        const cos_lambda = Math.cos(lambda_r);
+
+        const rho_e = -sin_lambda * rho_x + cos_lambda * rho_y;
+        const rho_n = -sin_phi * cos_lambda * rho_x - sin_phi * sin_lambda * rho_y + cos_phi * rho_z;
+        const rho_z_top = cos_phi * cos_lambda * rho_x + cos_phi * sin_lambda * rho_y + sin_phi * rho_z;
+
+        const range = Math.sqrt(rho_e * rho_e + rho_n * rho_n + rho_z_top * rho_z_top);
+        const elevation = Math.asin(rho_z_top / range) * 180 / Math.PI;
+
+        const azimuth = Math.atan2(rho_e, rho_n) * 180 / Math.PI;
+        const normalizedAzimuth = (azimuth + 360) % 360;
+
+        return { elevation: elevation, azimuth: normalizedAzimuth };
+    } catch (error) {
+        console.error('Error in calculateAzEl:', error);
+        return { elevation: '-', azimuth: '-' };
+    }
+}
+
+function populateLocationSelect() {
+    const select = document.getElementById('locationSelect');
+    if (!select) {
+        console.error('locationSelect element not found');
+        return;
+    }
+    while (select.options.length > 1) {
+        select.remove(1);
+    }
+    if (!locations || !Array.isArray(locations)) {
+        console.error('Locations data is not available or not an array');
+        return;
+    }
+    const sortedLocations = [...locations].sort((a, b) => a.city.localeCompare(b.city));
+    sortedLocations.forEach(location => {
+        const option = document.createElement('option');
+        option.value = location.city;
+        option.textContent = location.city;
+        select.appendChild(option);
+    });
+    const worldViewOption = document.createElement('option');
+    worldViewOption.value = 'world-view';
+    worldViewOption.textContent = 'World View';
+    select.appendChild(worldViewOption);
+}
+
+function populateAORFilter() {
+    const select = document.getElementById('aorFilter');
+    const mobileSelect = document.getElementById('aorFilterMobile');
+    if (!select || !mobileSelect) {
+        console.error('aorFilter or aorFilterMobile element not found');
+        return;
+    }
+    while (select.options.length > 1) select.remove(1);
+    while (mobileSelect.options.length > 1) mobileSelect.remove(1);
+    if (!locations || !Array.isArray(locations)) {
+        console.error('Locations data is not available or not an array');
+        return;
+    }
+    const aors = [...new Set(locations.map(loc => loc.aor))].sort((a, b) => a.localeCompare(b));
+    aors.forEach(aor => {
+        const option = document.createElement('option');
+        option.value = aor;
+        option.textContent = aor;
+        select.appendChild(option);
+        mobileSelect.appendChild(option.cloneNode(true));
+    });
+}
+
+function populateCountryFilter() {
+    const select = document.getElementById('countryFilter');
+    const mobileSelect = document.getElementById('countryFilterMobile');
+    if (!select || !mobileSelect) {
+        console.error('countryFilter or countryFilterMobile element not found');
+        return;
+    }
+    while (select.options.length > 1) select.remove(1);
+    while (mobileSelect.options.length > 1) mobileSelect.remove(1);
+    if (!locations || !Array.isArray(locations)) {
+        console.error('Locations data is not available or not an array');
+        return;
+    }
+    const countries = [...new Set(locations.map(loc => loc.country))].sort((a, b) => a.localeCompare(b));
+    countries.forEach(country => {
+        const option = document.createElement('option');
+        option.value = country;
+        option.textContent = country;
+        select.appendChild(option);
+        mobileSelect.appendChild(option.cloneNode(true));
+    });
+}
+
+function populateMapControls() {
+    const satelliteSelect = document.getElementById('satelliteSelect');
+    if (!satelliteSelect) {
+        console.error('satelliteSelect element not found');
+        return;
+    }
+    if (!satellites || !Array.isArray(satellites)) {
+        console.error('Satellites data is not available or not an array');
+        return;
+    }
+    satellites.forEach(sat => {
+        const div = document.createElement('div');
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.id = `sat-${sat.name}-mobile`;
+        checkbox.checked = true;
+        checkbox.setAttribute('aria-label', `Toggle visibility of ${sat.name} on mobile`);
+        const label = document.createElement('label');
+        label.htmlFor = `sat-${sat.name}-mobile`;
+        label.textContent = sat.name;
+        div.appendChild(checkbox);
+        div.appendChild(label);
+        satelliteSelect.appendChild(div);
+        checkbox.addEventListener('change', () => {
+            const selectedLocation = document.getElementById('locationSelect')?.value;
+            const loc = locations.find(l => l.city === selectedLocation) || 
+                (currentMarker ? { lat: currentMarker.getLatLng().lat, lon: currentMarker.getLatLng().lng, city: currentMarker.getPopup().getContent() } : null);
+            if (loc) debouncedUpdateMap(loc.lat, loc.lon, loc.city);
+        });
+    });
+}
+
+function createLocationsTable() {
+    const table = document.createElement('table');
+    table.setAttribute('role', 'grid');
+    const thead = document.createElement('thead');
+    const headerRow = document.createElement('tr');
+    ['Site', 'Country', 'Latitude', 'Longitude'].forEach((header, index) => {
+        const th = document.createElement('th');
+        th.textContent = header;
+        th.setAttribute('scope', 'col');
+        if (index < 4) {
+            th.classList.add('sortable');
+            th.style.cursor = 'pointer';
+            th.dataset.sortDir = 'asc';
+            th.setAttribute('aria-sort', 'none');
+            th.setAttribute('tabindex', '0');
+            th.addEventListener('click', () => sortTable(table, index));
+            th.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    sortTable(table, index);
+                }
+            });
+        }
+        headerRow.appendChild(th);
+    });
+    thead.appendChild(headerRow);
+    table.appendChild(thead);
+
+    const tbody = document.createElement('tbody');
+    let filteredLocations = [...locations];
+    const aorFilter = document.getElementById('aorFilter')?.value || '';
+    const countryFilter = document.getElementById('countryFilter')?.value || '';
+    const locationSelect = document.getElementById('locationSelect')?.value || '';
+
+    if (aorFilter) filteredLocations = filteredLocations.filter(loc => loc.aor === aorFilter);
+    if (countryFilter) filteredLocations = filteredLocations.filter(loc => loc.country === countryFilter);
+    if (locationSelect && locationSelect !== 'world-view') filteredLocations = filteredLocations.filter(loc => loc.city === locationSelect);
+
+    filteredLocations.forEach(location => {
+        const row = document.createElement('tr');
+        [location.city, location.country, location.lat.toFixed(4), location.lon.toFixed(4)]
+            .forEach(text => {
+                const td = document.createElement('td');
+                td.textContent = text;
+                row.appendChild(td);
+            });
+        tbody.appendChild(row);
+    });
+    table.appendChild(tbody);
+
+    return table;
+}
+
+function sortTable(table, colIndex) {
+    const tbody = table.querySelector('tbody');
+    const rows = Array.from(tbody.querySelectorAll('tr'));
+    const th = table.querySelector(`th:nth-child(${colIndex + 1})`);
+    const sortDir = th.dataset.sortDir === 'asc' ? 'desc' : 'asc';
+    th.dataset.sortDir = sortDir;
+    th.setAttribute('aria-sort', sortDir === 'asc' ? 'ascending' : 'descending');
+
+    rows.sort((a, b) => {
+        const aValue = a.cells[colIndex].textContent.trim();
+        const bValue = b.cells[colIndex].textContent.trim();
+        
+        if (colIndex === 2 || colIndex === 3) { // Latitude or Longitude
+            const aNum = parseFloat(aValue);
+            const bNum = parseFloat(bValue);
+            return sortDir === 'asc' ? aNum - bNum : bNum - aNum;
+        }
+        
+        return sortDir === 'asc' 
+            ? aValue.localeCompare(bValue) 
+            : bValue.localeCompare(aValue);
+    });
+
+    while (tbody.firstChild) {
+        tbody.removeChild(tbody.firstChild);
+    }
+    rows.forEach(row => tbody.appendChild(row));
+}
+
+// Global variables to track Antenna Pointing Angles sort state
+let antennaSortCol = 2; // Default to Center Lon (°)
+let antennaSortDir = 'asc'; // Default to ascending
+let isInitialLoad = true; // Track first load
+let zoomControlAdded = false; // Flag to prevent zoom control duplication
+
+function createAntennaTable(location) {
+    const table = document.createElement('table');
+    table.setAttribute('role', 'grid');
+    const thead = document.createElement('thead');
+    const headerRow = document.createElement('tr');
+    ['Show', 'Satellite', 'Lon (°)', 'El (°)', 'Az (°)'].forEach((header, index) => {
+        const th = document.createElement('th');
+        th.setAttribute('scope', 'col');
+        if (index === 0) {
+            const selectAll = document.createElement('span');
+            selectAll.id = 'select-all';
+            selectAll.textContent = 'All';
+            selectAll.setAttribute('role', 'button');
+            selectAll.setAttribute('tabindex', '0');
+            selectAll.addEventListener('click', toggleAllSatellites);
+            selectAll.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    toggleAllSatellites();
+                }
+            });
+            th.appendChild(selectAll);
+            th.classList.add('checkbox-cell');
+        } else {
+            th.textContent = header;
+            if (index === 1 || index === 2) {
+                th.classList.add('sortable');
+                th.style.cursor = 'pointer';
+                th.dataset.sortDir = (index === antennaSortCol) ? antennaSortDir : 'asc';
+                th.setAttribute('aria-sort', 'none');
+                th.setAttribute('tabindex', '0');
+                th.addEventListener('click', () => {
+                    sortAntennaTable(table, index);
+                });
+                th.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        sortAntennaTable(table, index);
+                    }
+                });
+            }
+        }
+        headerRow.appendChild(th);
+    });
+    thead.appendChild(headerRow);
+    table.appendChild(thead);
+
+    const tbody = document.createElement('tbody');
+    if (!satellites || !Array.isArray(satellites)) {
+        console.error('Satellites data is not available or not an array');
+        return table;
+    }
+    satellites.forEach(sat => {
+        const row = document.createElement('tr');
+        let elevation, azimuth;
+        if (location) {
+            ({ elevation, azimuth } = calculateAzEl(location.lat, location.lon, sat.centerLon));
+        } else {
+            elevation = '-';
+            azimuth = '-';
+        }
+
+        const checkCell = document.createElement('td');
+        checkCell.classList.add('checkbox-cell');
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.id = `sat-${sat.name}`;
+        checkbox.setAttribute('aria-label', `Toggle visibility of ${sat.name}`);
+        if (!location || document.getElementById('aorFilter').value || document.getElementById('countryFilter').value) {
+            checkbox.checked = false;
+        } else {
+            checkbox.checked = location && elevation >= 0;
+        }
+        checkCell.appendChild(checkbox);
+        row.appendChild(checkCell);
+
+        const nameCell = document.createElement('td');
+        nameCell.textContent = sat.name;
+        row.appendChild(nameCell);
+
+        const centerLonCell = document.createElement('td');
+        centerLonCell.textContent = sat.centerLon.toFixed(1);
+        row.appendChild(centerLonCell);
+
+        const elCell = document.createElement('td');
+        elCell.textContent = elevation === '-' ? '-' : elevation.toFixed(1);
+        if (elevation !== '-' && elevation < 0) elCell.classList.add('negative-elevation');
+        row.appendChild(elCell);
+
+        const azCell = document.createElement('td');
+        azCell.textContent = azimuth === '-' ? '-' : azimuth.toFixed(1);
+        row.appendChild(azCell);
+
+        tbody.appendChild(row);
+    });
+    table.appendChild(tbody);
+
+    if (isInitialLoad) {
+        antennaSortCol = 2;
+        antennaSortDir = 'asc';
+        sortAntennaTable(table, 2);
+        isInitialLoad = false;
+    }
+
+    return table;
+}
+
+function sortAntennaTable(table, colIndex) {
+    const tbody = table.querySelector('tbody');
+    const rows = Array.from(tbody.querySelectorAll('tr'));
+    const th = table.querySelector(`th:nth-child(${colIndex + 1})`);
+    const sortDir = th.dataset.sortDir === 'asc' ? 'desc' : 'asc';
+    th.dataset.sortDir = sortDir;
     th.setAttribute('aria-sort', sortDir === 'asc' ? 'ascending' : 'descending');
 
     rows.sort((a, b) => {
@@ -111,7 +505,7 @@ function updateMap(lat = null, lon = null, clickedCity = null, selectedAOR = nul
                 iconUrl: 'https://img.icons8.com/ios-filled/50/000000/satellite.png',
                 iconSize: [20, 20],
                 iconAnchor: [10, 10],
-                alt: sat.name // Added alt text for accessibility
+                alt: sat.name
             });
             const marker = L.marker([0, sat.centerLon], { 
                 icon: satIcon,
@@ -143,7 +537,7 @@ function updateMap(lat = null, lon = null, clickedCity = null, selectedAOR = nul
                 icon: label,
                 keyboard: true,
                 title: sat.name,
-                'aria-label': `Satellite label for ${sat.name}` // Added aria-label for accessibility
+                'aria-label': `Satellite label for ${sat.name}`
             });
             labelMarker.on('click', () => {
                 if (location) {
@@ -248,7 +642,7 @@ function updateMap(lat = null, lon = null, clickedCity = null, selectedAOR = nul
                     iconUrl: 'https://img.icons8.com/ios-filled/50/000000/satellite.png',
                     iconSize: [20, 20],
                     iconAnchor: [10, 10],
-                    alt: 'Custom Location Marker' // Added alt text for accessibility
+                    alt: 'Custom Location Marker'
                 })
             });
             currentMarker.bindPopup(`${clickedCity}<br>${getSatData(lat, lon)}`);
