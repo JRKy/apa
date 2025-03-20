@@ -5,11 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="Antenna Pointing Angles tool for satellite communication">
     <meta name="theme-color" content="#003087">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://unpkg.com; style-src 'self' https://unpkg.com; img-src 'self' https://img.icons8.com; connect-src 'self';">
     <title>Antenna Pointing Angles</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
-    <link rel="stylesheet" href="styles.css?v=1.0.47">
-    <link rel="manifest" href="manifest.json?v=1.0.0">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+    <link rel="stylesheet" href="styles.css?v=1.0.49">
+    <link rel="manifest" href="manifest.json?v=1.0.1">
     <link rel="icon" href="favicon.ico" type="image/x-icon">
+    <script src="https://unpkg.com/core-js-bundle@3.36.1/minified.js"></script>
 </head>
 <body>
     <header>
@@ -37,7 +41,9 @@
             </div>
         </section>
         <div class="map-content">
-            <div id="map" role="application" aria-label="Interactive map showing satellite locations"></div>
+            <div id="map" role="application" aria-label="Interactive map showing satellite locations">
+                <div id="map-announcements" class="sr-only" aria-live="polite"></div>
+            </div>
             <section id="antenna-control" class="antenna-control" aria-label="Antenna Pointing Angles Chart"></section>
             <section id="locations-control" class="locations-control" aria-label="Locations Chart"></section>
         </div>
@@ -61,7 +67,16 @@
         <p>Developed by xAI</p>
     </footer>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
     <script src="data.js?v=1.0.0"></script>
-    <script src="script.js?v=1.0.66"></script>
+    <script src="script.js?v=1.0.72"></script>
+    <script>
+        let deferredPrompt;
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            deferredPrompt.prompt();
+        });
+    </script>
 </body>
 </html>
