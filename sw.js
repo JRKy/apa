@@ -1,14 +1,18 @@
-const CACHE_VERSION = 'v=1.0.66';
+const CACHE_VERSION = 'v=1.0.75';
 const CACHE_NAME = `apa-cache-${CACHE_VERSION}`;
 const urlsToCache = [
     '/',
-    '/index.html?v=1.0.66',
-    '/styles.css?v=1.0.47',
-    '/script.js?v=1.0.66',
-    '/data.js?v=1.0.0',
-    '/manifest.json?v=1.0.0',
+    '/index.html',
+    '/styles.css',
+    '/script.js',
+    '/data.js',
+    '/manifest.json',
+    '/offline.html',
     'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js',
     'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',
+    'https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js',
+    'https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css',
+    'https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css',
     'https://img.icons8.com/ios-filled/50/000000/satellite.png'
 ];
 
@@ -54,6 +58,8 @@ self.addEventListener('fetch', event => {
                             cache.put(event.request, responseToCache);
                         });
                     return response;
+                }).catch(() => {
+                    return caches.match('/offline.html');
                 });
             })
     );
