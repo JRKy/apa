@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Antenna Pointing Angles tool for satellite communication">
+    <meta name="theme-color" content="#003087">
+    <title>Antenna Pointing Angles</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <link rel="stylesheet" href="styles.css?v=1.0.47">
+    <link rel="manifest" href="manifest.json?v=1.0.0">
+    <link rel="icon" href="favicon.ico" type="image/x-icon">
+</head>
+<body>
+    <header>
+        <h1>Antenna Pointing Angles</h1>
+    </header>
+    <main id="map-container">
+        <section class="map-control-panel" aria-label="Map Controls">
+            <div class="controls">
+                <label for="locationSelect" class="sr-only">Select Location</label>
+                <select id="locationSelect" class="filter-dropdown" aria-label="Select a location">
+                    <option value="">Select Location</option>
+                </select>
+                <label for="aorFilter" class="sr-only">Filter by AOR</label>
+                <select id="aorFilter" class="filter-dropdown" aria-label="Filter by Area of Responsibility">
+                    <option value="">All AORs</option>
+                </select>
+                <label for="countryFilter" class="sr-only">Filter by Country</label>
+                <select id="countryFilter" class="filter-dropdown" aria-label="Filter by Country">
+                    <option value="">All Countries</option>
+                </select>
+            </div>
+            <div class="toggle-buttons">
+                <button id="antenna-toggle" class="control-toggle" aria-expanded="false" aria-controls="antenna-control">APA</button>
+                <button id="locations-toggle" class="control-toggle" aria-expanded="false" aria-controls="locations-control">Locations</button>
+            </div>
+        </section>
+        <div class="map-content">
+            <div id="map" role="application" aria-label="Interactive map showing satellite locations"></div>
+            <section id="antenna-control" class="antenna-control" aria-label="Antenna Pointing Angles Chart"></section>
+            <section id="locations-control" class="locations-control" aria-label="Locations Chart"></section>
+        </div>
+    </main>
+    <div id="map-controls" style="display: none;">
+        <button id="hamburger" aria-expanded="false" aria-controls="controls-panel" aria-label="Toggle mobile controls">☰</button>
+        <div id="controls-panel" style="display: none;" aria-hidden="true">
+            <label for="satelliteSelect">Satellites:</label>
+            <div id="satelliteSelect"></div>
+            <label for="aorFilterMobile">AOR:</label>
+            <select id="aorFilterMobile" class="filter-dropdown" aria-label="Filter by Area of Responsibility (Mobile)">
+                <option value="">All AORs</option>
+            </select>
+            <label for="countryFilterMobile">Country:</label>
+            <select id="countryFilterMobile" class="filter-dropdown" aria-label="Filter by Country (Mobile)">
+                <option value="">All Countries</option>
+            </select>
+        </div>
+    </div>
+    <footer>
+        <p>Developed by xAI</p>
+    </footer>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <script src="data.js?v=1.0.0"></script>
+    <script src="script.js?v=1.0.66"></script>
+</body>
+</html>

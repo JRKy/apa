@@ -1,0 +1,270 @@
+/* Reset and Base Styles */
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: Arial, sans-serif;
+    color: #333333;
+    background-color: #f0f0f0;
+    line-height: 1.6;
+}
+
+/* Screen Reader Only */
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    border: 0;
+}
+
+/* Header */
+header {
+    background-color: #003087;
+    color: #ffffff;
+    padding: 10px;
+    text-align: center;
+}
+
+header h1 {
+    font-size: 1.5rem;
+}
+
+/* Main Content */
+#map-container {
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - 60px);
+}
+
+.map-control-panel {
+    display: flex;
+    justify-content: space-between;
+    padding: 10px;
+    background-color: #f0f0f0;
+}
+
+.controls {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.filter-dropdown {
+    padding: 5px;
+    border-radius: 5px;
+    border: 1px solid #ccc;
+    background-color: #ffffff;
+    font-size: 1rem;
+}
+
+.filter-dropdown:focus {
+    outline: 2px solid #0056d2;
+    outline-offset: 2px;
+}
+
+.filter-dropdown.active-filter {
+    background-color: #e0e0e0;
+}
+
+.toggle-buttons {
+    display: flex;
+    gap: 10px;
+}
+
+.control-toggle {
+    padding: 5px 10px;
+    background-color: #003087;
+    color: #ffffff;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 1rem;
+    transition: background-color 0.3s ease;
+}
+
+.control-toggle:hover,
+.control-toggle:focus {
+    background-color: #0056d2;
+    outline: none;
+}
+
+.control-toggle:focus {
+    outline: 2px solid #0056d2;
+    outline-offset: 2px;
+}
+
+.map-content {
+    display: flex;
+    flex: 1;
+    position: relative;
+}
+
+#map {
+    flex: 1;
+    height: 100%;
+}
+
+.antenna-control,
+.locations-control {
+    width: 250px;
+    background-color: #ffffff;
+    border-left: 1px solid #ccc;
+    padding: 10px;
+    overflow-y: auto;
+    display: none;
+}
+
+/* Tables */
+table {
+    width: 100%;
+    border-collapse: collapse;
+    border: 1px solid #ccc;
+}
+
+th, td {
+    padding: 5px;
+    border: 1px solid #ccc;
+    text-align: left;
+    font-size: 0.875rem;
+}
+
+th.sortable {
+    cursor: pointer;
+}
+
+th.sortable:hover {
+    background-color: #e0e0e0;
+}
+
+.checkbox-cell {
+    text-align: center;
+    width: 50px;
+}
+
+#select-all {
+    cursor: pointer;
+    color: #003087;
+}
+
+#select-all:hover,
+#select-all:focus {
+    text-decoration: underline;
+}
+
+#select-all:focus {
+    outline: 2px solid #0056d2;
+    outline-offset: 2px;
+}
+
+.negative-elevation {
+    color: #d32f2f;
+}
+
+/* Satellite Labels */
+.leaflet-marker-icon.sat-label {
+    background: none !important;
+    border: none !important;
+    font-size: 12px;
+    color: #000;
+    text-align: center;
+}
+
+.leaflet-marker-icon.sat-label.negative-elevation {
+    color: #d32f2f;
+}
+
+/* Mobile Controls */
+#map-controls {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 1000;
+}
+
+#hamburger {
+    background-color: #003087;
+    color: #ffffff;
+    border: none;
+    padding: 5px 10px;
+    font-size: 18px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+#hamburger:hover,
+#hamburger:focus {
+    background-color: #0056d2;
+    outline: none;
+}
+
+#hamburger:focus {
+    outline: 2px solid #0056d2;
+    outline-offset: 2px;
+}
+
+#controls-panel {
+    background-color: #ffffff;
+    border: 1px solid #ccc;
+    padding: 10px;
+    display: none;
+}
+
+#controls-panel.active {
+    display: block;
+}
+
+#controls-panel label {
+    display: block;
+    margin-top: 10px;
+    color: #333333;
+}
+
+#satelliteSelect div {
+    margin: 5px 0;
+}
+
+/* Footer */
+footer {
+    background-color: #f0f0f0;
+    text-align: center;
+    padding: 5px;
+    color: #666666;
+}
+
+/* Media Queries for Mobile */
+@media (max-width: 768px) {
+    #map-container {
+        flex-direction: column;
+    }
+
+    .map-control-panel {
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .controls, .toggle-buttons {
+        flex-direction: column;
+        gap: 5px;
+    }
+
+    .map-content {
+        flex-direction: column;
+    }
+
+    .antenna-control, .locations-control {
+        width: 100%;
+        border: none;
+        border-top: 1px solid #ccc;
+    }
+
+    #map-controls {
+        display: block;
+    }
+}
