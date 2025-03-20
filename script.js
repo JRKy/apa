@@ -420,7 +420,7 @@ function toggleAllSatellites() {
     const selectedLocation = document.getElementById('locationSelect')?.value;
     const location = locations.find(loc => loc.city === selectedLocation) || 
         (currentMarker ? { lat: currentMarker.getLatLng().lat, lon: currentMarker.getLatLng().lng, city: currentMarker.getPopup().getContent() } : null);
-    if (location) debouncedUpdateMap(location.lat, loc.lon, loc.city);
+    if (location) debouncedUpdateMap(location.lat, location.lon, location.city);
 }
 
 function getSatData(lat, lon) {
