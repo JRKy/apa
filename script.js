@@ -1,4 +1,15 @@
-// Define functions first
+// Debounce utility function
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}
 
 // Function to get approximate AOR bounds based on site data
 function getAORBounds(aor) {
@@ -150,11 +161,11 @@ function populateMapControls() {
         const div = document.createElement('div');
         const checkbox = document.createElement('input');
         checkbox.type = 'checkbox';
-        checkbox.id = `sat-${sat.name}`;
+        checkbox.id = `sat-${sat.name}-mobile`;
         checkbox.checked = true;
-        checkbox.setAttribute('aria-label', `Toggle visibility of ${sat.name}`);
+        checkbox.setAttribute('aria-label', `Toggle visibility of ${sat.name} on mobile`);
         const label = document.createElement('label');
-        label.htmlFor = `sat-${sat.name}`;
+        label.htmlFor = `sat-${sat.name}-mobile`;
         label.textContent = sat.name;
         div.appendChild(checkbox);
         div.appendChild(label);
@@ -163,7 +174,7 @@ function populateMapControls() {
             const selectedLocation = document.getElementById('locationSelect')?.value;
             const loc = locations.find(l => l.city === selectedLocation) || 
                 (currentMarker ? { lat: currentMarker.getLatLng().lat, lon: currentMarker.getLatLng().lng, city: currentMarker.getPopup().getContent() } : null);
-            if (loc) updateMap(loc.lat, loc.lon, loc.city);
+            if (loc) debouncedUpdateMap(loc.lat, loc.lon, loc.city);
         });
     });
 }
@@ -182,7 +193,14 @@ function createLocationsTable() {
             th.style.cursor = 'pointer';
             th.dataset.sortDir = 'asc';
             th.setAttribute('aria-sort', 'none');
+            th.setAttribute('tabindex', '0');
             th.addEventListener('click', () => sortTable(table, index));
+            th.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    sortTable(table, index);
+                }
+            });
         }
         headerRow.appendChild(th);
     });
@@ -279,8 +297,15 @@ function createAntennaTable(location) {
                 th.style.cursor = 'pointer';
                 th.dataset.sortDir = (index === antennaSortCol) ? antennaSortDir : 'asc';
                 th.setAttribute('aria-sort', 'none');
+                th.setAttribute('tabindex', '0');
                 th.addEventListener('click', () => {
                     sortAntennaTable(table, index);
+                });
+                th.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        sortAntennaTable(table, index);
+                    }
                 });
             }
         }
@@ -310,7 +335,6 @@ function createAntennaTable(location) {
         checkbox.type = 'checkbox';
         checkbox.id = `sat-${sat.name}`;
         checkbox.setAttribute('aria-label', `Toggle visibility of ${sat.name}`);
-        // Uncheck all satellites if location is null or AOR/Country filter is active
         if (!location || document.getElementById('aorFilter').value || document.getElementById('countryFilter').value) {
             checkbox.checked = false;
         } else {
@@ -384,7 +408,7 @@ function toggleAllSatellites() {
     const selectedLocation = document.getElementById('locationSelect')?.value;
     const location = locations.find(loc => loc.city === selectedLocation) || 
         (currentMarker ? { lat: currentMarker.getLatLng().lat, lon: currentMarker.getLatLng().lng, city: currentMarker.getPopup().getContent() } : null);
-    if (location) updateMap(location.lat, location.lon, location.city);
+    if (location) debouncedUpdateMap(location.lat, loc.lon, loc.city);
 }
 
 function getSatData(lat, lon) {
@@ -407,11 +431,16 @@ let azimuthLines = [];
 let currentMarker = null;
 let aorMarkers = [];
 let satelliteMarkers = [];
+let markerClusterGroup = null;
+
+const debouncedUpdateMap = debounce(updateMap, 250);
+const debouncedUpdateLabels = debounce(updateLabels, 250);
 
 function updateMap(lat = null, lon = null, clickedCity = null, selectedAOR = null, selectedCountry = null) {
     const locationSelect = document.getElementById('locationSelect')?.value || '';
     const aorFilter = selectedAOR || document.getElementById('aorFilter')?.value || '';
     const countryFilter = selectedCountry || document.getElementById('countryFilter')?.value || '';
+    const mapAnnouncements = document.getElementById('map-announcements');
     let location;
 
     if (lat !== null && lon !== null) {
@@ -451,37 +480,70 @@ function updateMap(lat = null, lon = null, clickedCity = null, selectedAOR = nul
         console.log('Tile layer added:', tileLayer);
         map.invalidateSize();
 
-        map.on('zoomend', () => updateLabels());
-        map.on('moveend', () => updateLabels());
+        map.on('zoomend', debouncedUpdateLabels);
+        map.on('moveend', debouncedUpdateLabels);
 
         if (!satellites || !Array.isArray(satellites)) {
             console.error('Satellites data is not available or not an array');
             return;
         }
+        markerClusterGroup = L.markerClusterGroup();
         satellites.forEach(sat => {
             const satIcon = L.icon({
                 iconUrl: 'https://img.icons8.com/ios-filled/50/000000/satellite.png',
                 iconSize: [20, 20],
                 iconAnchor: [10, 10]
             });
-            const marker = L.marker([0, sat.centerLon], { icon: satIcon })
-                .addTo(map)
-                .bindPopup(sat.name);
+            const marker = L.marker([0, sat.centerLon], { 
+                icon: satIcon,
+                keyboard: true,
+                title: sat.name
+            });
+            marker.bindPopup(sat.name);
+            marker.on('click', () => {
+                if (location) {
+                    const { elevation, azimuth } = calculateAzEl(location.lat, location.lon, sat.centerLon);
+                    marker.bindPopup(`${sat.name}<br>Azimuth: ${azimuth.toFixed(1)}°<br>Elevation: ${elevation.toFixed(1)}°`).openPopup();
+                    if (mapAnnouncements) {
+                        mapAnnouncements.textContent = `${sat.name} popup opened. Azimuth: ${azimuth.toFixed(1)} degrees, Elevation: ${elevation.toFixed(1)} degrees.`;
+                    }
+                }
+            });
+            marker.on('keypress', (e) => {
+                if (e.originalEvent.key === 'Enter' || e.originalEvent.key === ' ') {
+                    marker.fire('click');
+                }
+            });
             const label = L.divIcon({
                 className: 'sat-label',
                 html: `<div>${sat.name}</div>`,
                 iconSize: [null, 20],
                 iconAnchor: [(sat.name.length * 6) / 2, -10]
             });
-            const labelMarker = L.marker([0, sat.centerLon], { icon: label }).addTo(map);
+            const labelMarker = L.marker([0, sat.centerLon], { 
+                icon: label,
+                keyboard: true,
+                title: sat.name
+            });
             labelMarker.on('click', () => {
                 if (location) {
                     const { elevation, azimuth } = calculateAzEl(location.lat, location.lon, sat.centerLon);
                     labelMarker.bindPopup(`${sat.name}<br>Azimuth: ${azimuth.toFixed(1)}°<br>Elevation: ${elevation.toFixed(1)}°`).openPopup();
+                    if (mapAnnouncements) {
+                        mapAnnouncements.textContent = `${sat.name} label popup opened. Azimuth: ${azimuth.toFixed(1)} degrees, Elevation: ${elevation.toFixed(1)} degrees.`;
+                    }
                 }
             });
+            labelMarker.on('keypress', (e) => {
+                if (e.originalEvent.key === 'Enter' || e.originalEvent.key === ' ') {
+                    labelMarker.fire('click');
+                }
+            });
+            markerClusterGroup.addLayer(marker);
+            markerClusterGroup.addLayer(labelMarker);
             satelliteMarkers.push({ marker, labelMarker });
         });
+        map.addLayer(markerClusterGroup);
     }
 
     const currentZoom = map.getZoom();
@@ -518,7 +580,7 @@ function updateMap(lat = null, lon = null, clickedCity = null, selectedAOR = nul
     if (currentMarker) {
         currentMarker.on('dragend', () => {
             const newLatLng = currentMarker.getLatLng();
-            updateMap(newLatLng.lat, newLatLng.lng, 'Custom Location');
+            debouncedUpdateMap(newLatLng.lat, newLatLng.lng, 'Custom Location');
         });
     }
 
@@ -528,29 +590,57 @@ function updateMap(lat = null, lon = null, clickedCity = null, selectedAOR = nul
     if (locationSelect && locationSelect !== 'world-view') filteredLocations = filteredLocations.filter(loc => loc.city === locationSelect);
 
     filteredLocations.forEach(loc => {
-        const aorMarker = L.marker([loc.lat, loc.lon], { draggable: false })
-            .addTo(map)
-            .bindPopup(() => {
-                const content = `${loc.city}<br>${getSatData(loc.lat, loc.lon)}`;
-                aorMarker.getPopup().setContent(content);
-                return content;
-            });
+        const aorMarker = L.marker([loc.lat, loc.lon], { 
+            draggable: false,
+            keyboard: true,
+            title: loc.city
+        });
+        aorMarker.bindPopup(() => {
+            const content = `${loc.city}<br>${getSatData(loc.lat, loc.lon)}`;
+            aorMarker.getPopup().setContent(content);
+            return content;
+        });
         aorMarker.on('click', () => {
             const popup = aorMarker.getPopup();
-            if (popup) popup.openOn(map);
+            if (popup) {
+                popup.openOn(map);
+                if (mapAnnouncements) {
+                    mapAnnouncements.textContent = `${loc.city} marker popup opened.`;
+                }
+            }
+        });
+        aorMarker.on('keypress', (e) => {
+            if (e.originalEvent.key === 'Enter' || e.originalEvent.key === ' ') {
+                aorMarker.fire('click');
+            }
         });
         aorMarkers.push(aorMarker);
+        markerClusterGroup.addLayer(aorMarker);
     });
 
     if (lat !== null && lon !== null) {
         if (!currentMarker) {
-            currentMarker = L.marker([lat, lon], { draggable: true })
-                .addTo(map)
-                .bindPopup(`${clickedCity}<br>${getSatData(lat, lon)}`);
+            currentMarker = L.marker([lat, lon], { 
+                draggable: true,
+                keyboard: true,
+                title: 'Custom Location'
+            });
+            currentMarker.bindPopup(`${clickedCity}<br>${getSatData(lat, lon)}`);
             currentMarker.on('dragend', () => {
                 const newLatLng = currentMarker.getLatLng();
-                updateMap(newLatLng.lat, newLatLng.lng, 'Custom Location');
+                debouncedUpdateMap(newLatLng.lat, newLatLng.lng, 'Custom Location');
             });
+            currentMarker.on('click', () => {
+                if (mapAnnouncements) {
+                    mapAnnouncements.textContent = `Custom marker popup opened at latitude ${lat}, longitude ${lon}.`;
+                }
+            });
+            currentMarker.on('keypress', (e) => {
+                if (e.originalEvent.key === 'Enter' || e.originalEvent.key === ' ') {
+                    currentMarker.fire('click');
+                }
+            });
+            markerClusterGroup.addLayer(currentMarker);
         } else {
             currentMarker.setLatLng([lat, lon]);
             currentMarker.bindPopup(`${clickedCity}<br>${getSatData(lat, lon)}`);
@@ -563,11 +653,13 @@ function updateMap(lat = null, lon = null, clickedCity = null, selectedAOR = nul
         const antennaTable = createAntennaTable(location);
         antennaControl.appendChild(antennaTable);
         antennaControl.querySelectorAll('.checkbox-cell input[type="checkbox"]').forEach(checkbox => {
-            checkbox.setAttribute('data-event-attached', 'true');
-            checkbox.addEventListener('change', () => {
-                const loc = currentMarker ? { lat: currentMarker.getLatLng().lat, lon: currentMarker.getLatLng().lng, city: currentMarker.getPopup().getContent() } : location;
-                if (loc) updateMap(loc.lat, loc.lon, loc.city);
-            });
+            if (!checkbox.getAttribute('data-event-attached')) {
+                checkbox.setAttribute('data-event-attached', 'true');
+                checkbox.addEventListener('change', () => {
+                    const loc = currentMarker ? { lat: currentMarker.getLatLng().lat, lon: currentMarker.getLatLng().lng, city: currentMarker.getPopup().getContent() } : location;
+                    if (loc) debouncedUpdateMap(loc.lat, loc.lon, loc.city);
+                });
+            }
         });
         document.getElementById('antenna-toggle').setAttribute('aria-expanded', 'true');
     } else {
@@ -610,6 +702,11 @@ function updateMap(lat = null, lon = null, clickedCity = null, selectedAOR = nul
                     opacity: 0.7
                 }).addTo(map);
                 line.bindPopup(`${sat.name}<br>Azimuth: ${azimuth.toFixed(1)}°<br>Elevation: ${elevation.toFixed(1)}°`);
+                line.on('click', () => {
+                    if (mapAnnouncements) {
+                        mapAnnouncements.textContent = `${sat.name} plot line popup opened. Azimuth: ${azimuth.toFixed(1)} degrees, Elevation: ${elevation.toFixed(1)} degrees.`;
+                    }
+                });
 
                 const labelClass = elevation < 0 ? 'negative-elevation' : '';
                 const label = L.divIcon({
@@ -618,9 +715,21 @@ function updateMap(lat = null, lon = null, clickedCity = null, selectedAOR = nul
                     iconSize: [null, 20],
                     iconAnchor: [(sat.name.length * 6) / 2, -10]
                 });
-                const labelMarker = L.marker([lat2, lon2], { icon: label }).addTo(map);
+                const labelMarker = L.marker([lat2, lon2], { 
+                    icon: label,
+                    keyboard: true,
+                    title: sat.name
+                }).addTo(map);
+                labelMarker.bindPopup(`${sat.name}<br>Azimuth: ${azimuth.toFixed(1)}°<br>Elevation: ${elevation.toFixed(1)}°`);
                 labelMarker.on('click', () => {
-                    labelMarker.bindPopup(`${sat.name}<br>Azimuth: ${azimuth.toFixed(1)}°<br>Elevation: ${elevation.toFixed(1)}°`).openPopup();
+                    if (mapAnnouncements) {
+                        mapAnnouncements.textContent = `${sat.name} plot line label popup opened. Azimuth: ${azimuth.toFixed(1)} degrees, Elevation: ${elevation.toFixed(1)} degrees.`;
+                    }
+                });
+                labelMarker.on('keypress', (e) => {
+                    if (e.originalEvent.key === 'Enter' || e.originalEvent.key === ' ') {
+                        labelMarker.fire('click');
+                    }
                 });
                 azimuthLines.push({ 
                     line, 
@@ -632,12 +741,15 @@ function updateMap(lat = null, lon = null, clickedCity = null, selectedAOR = nul
                     satName: sat.name,
                     azimuth
                 });
+                if (mapAnnouncements) {
+                    mapAnnouncements.textContent = `${sat.name} plot line added.`;
+                }
             }
         });
     }
 
     map.invalidateSize();
-    updateLabels();
+    debouncedUpdateLabels();
 }
 
 function createLabel(name, position, azimuth, startPosition, elevationClass) {
@@ -661,6 +773,7 @@ function updateLabels() {
     const zoomLevel = map.getZoom();
     const lineLength = 50;
     const earthRadius = 6371;
+    const mapAnnouncements = document.getElementById('map-announcements');
 
     azimuthLines.forEach(item => {
         if (item.label) {
@@ -706,10 +819,20 @@ function updateLabels() {
                     iconSize: [null, 20],
                     iconAnchor: [(item.satName.length * 6) / 2, -10]
                 }),
-                pane: 'markerPane'
+                pane: 'markerPane',
+                keyboard: true,
+                title: item.satName
             }).addTo(map);
+            item.label.bindPopup(`${item.satName}<br>Azimuth: ${item.azimuth.toFixed(1)}°<br>Elevation: ${elevation.toFixed(1)}°`);
             item.label.on('click', () => {
-                item.label.bindPopup(`${item.satName}<br>Azimuth: ${item.azimuth.toFixed(1)}°<br>Elevation: ${elevation.toFixed(1)}°`).openPopup();
+                if (mapAnnouncements) {
+                    mapAnnouncements.textContent = `${item.satName} plot line label popup opened. Azimuth: ${item.azimuth.toFixed(1)} degrees, Elevation: ${elevation.toFixed(1)} degrees.`;
+                }
+            });
+            item.label.on('keypress', (e) => {
+                if (e.originalEvent.key === 'Enter' || e.originalEvent.key === ' ') {
+                    item.label.fire('click');
+                }
             });
         }
     });
@@ -791,7 +914,7 @@ function updateMapBasedOnFilter(filterId, selectedValue) {
                     const antennaTable = createAntennaTable(null);
                     antennaControl.appendChild(antennaTable);
                 }
-                updateMap();
+                debouncedUpdateMap();
                 return;
             }
             const location = locations.find(loc => loc.city === selectedValue);
@@ -816,7 +939,7 @@ function updateMapBasedOnFilter(filterId, selectedValue) {
         case 'countryFilter':
             if (selectedValue) {
                 selectedCountry = selectedValue;
-                const countryLocations = locations.filter(loc => loc.country === selectedValue);
+                const countryLocations = locations.filter(loc => loc.country === selectedCountry);
                 if (countryLocations.length > 0) {
                     const lats = countryLocations.map(loc => loc.lat);
                     const lons = countryLocations.map(loc => loc.lon);
@@ -831,7 +954,7 @@ function updateMapBasedOnFilter(filterId, selectedValue) {
             }
             break;
     }
-    updateMap(lat, lon, clickedCity, selectedAOR, selectedCountry);
+    debouncedUpdateMap(lat, lon, clickedCity, selectedAOR, selectedCountry);
 }
 
 // Now define the event listener
@@ -862,7 +985,7 @@ document.addEventListener('DOMContentLoaded', () => {
             locationsControl.appendChild(locationsTable);
             locationsControl.style.display = 'none';
         }
-        updateMap();
+        debouncedUpdateMap();
     }
     populateMapControls();
 
@@ -906,10 +1029,10 @@ document.addEventListener('DOMContentLoaded', () => {
             if (aorBounds) {
                 map.fitBounds(aorBounds);
             }
-            updateMap(null, null, null, selectedAOR);
+            debouncedUpdateMap(null, null, null, selectedAOR);
         } else {
             map.fitBounds([[-90, -180], [90, 150]]);
-            updateMap();
+            debouncedUpdateMap();
         }
     });
 
@@ -926,10 +1049,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 ];
                 map.fitBounds(bounds);
             }
-            updateMap(null, null, null, null, selectedCountry);
+            debouncedUpdateMap(null, null, null, null, selectedCountry);
         } else {
             map.fitBounds([[-90, -180], [90, 150]]);
-            updateMap();
+            debouncedUpdateMap();
         }
     });
 
@@ -955,7 +1078,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (locationsControl) locationsControl.style.display = 'none';
             }
             const location = currentMarker ? { lat: currentMarker.getLatLng().lat, lon: currentMarker.getLatLng().lng, city: currentMarker.getPopup().getContent() } : null;
-            if (location) updateMap(location.lat, location.lon, location.city);
+            if (location) debouncedUpdateMap(location.lat, location.lon, location.city);
             adjustMapWidth();
         });
     }
